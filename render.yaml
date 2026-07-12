@@ -4,7 +4,7 @@ services:
   - type: web
     name: amdox-erp-backend
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm run prisma:db:postgres --workspace=backend && npm install && npx prisma generate --schema=backend/prisma/schema.prisma && npm run build --workspace=backend
     startCommand: npm run start --workspace=backend
     envVars:
@@ -24,10 +24,8 @@ services:
         value: "false"
 
   # 2. Frontend Static Site
-  - type: web
+  - type: static
     name: amdox-erp-frontend
-    runtime: static
-    plan: free
     buildCommand: npm install && npm run build --workspace=frontend
     staticPublishPath: frontend/dist
     routes:
@@ -41,4 +39,4 @@ services:
 databases:
   # 3. Managed PostgreSQL Database
   - name: amdox-erp-db
-    plan: free
+    plan: starter
