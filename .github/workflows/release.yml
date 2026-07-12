@@ -1,0 +1,59 @@
+name: Release — Tag & Changelog
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 1.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v2
+        with:
+          config: cliff.toml
+          args: --verbose --latest
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: "Amdox ERP ${{ github.ref_name }}"
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') }}
+          generate_release_notes: true
+
+      - name: Update CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "${{ steps.changelog.outputs.changelog }}" > CHANGELOG_LATEST.md
+          cat CHANGELOG_LATEST.md CHANGELOG.md > CHANGELOG_NEW.md 2>/dev/null || cp CHANGELOG_LATEST.md CHANGELOG.md
+          mv CHANGELOG_NEW.md CHANGELOG.md 2>/dev/null || true
+
+      - name: Commit changelog update
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: update CHANGELOG.md for ${{ github.ref_name }}"
+          file_pattern: CHANGELOG.md

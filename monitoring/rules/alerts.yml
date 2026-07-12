@@ -1,0 +1,77 @@
+groups:
+  - name: amdox-erp-alerts
+    interval: 30s
+    rules:
+      # ── API Availability ──────────────────────────────────────────────────
+      - alert: BackendDown
+        expr: up{job="amdox-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Amdox ERP Backend is DOWN"
+          description: "The backend API has been unreachable for more than 1 minute."
+
+      # ── High Error Rate ───────────────────────────────────────────────────
+      - alert: HighAPIErrorRate
+        expr: |
+          rate(http_requests_total{status_code=~"5.."}[5m]) /
+          rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API error rate (>5%)"
+          description: "5xx error rate is {{ printf \"%.2f\" $value | humanizePercentage }} over last 5 minutes."
+
+      # ── Slow API Response ─────────────────────────────────────────────────
+      - alert: SlowAPIResponse
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API P95 latency > 2s"
+          description: "95th percentile API response time is {{ $value }}s."
+
+      # ── High CPU ──────────────────────────────────────────────────────────
+      - alert: HighCPUUsage
+        expr: process_cpu_usage > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend CPU > 85%"
+          description: "CPU usage has been > 85% for 10 minutes."
+
+      # ── High Memory ───────────────────────────────────────────────────────
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes / (1024 * 1024 * 1024) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend memory > 1.5 GB"
+          description: "Process memory usage is {{ $value | humanize }}B."
+
+      # ── Redis Down ────────────────────────────────────────────────────────
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is DOWN"
+          description: "Redis cache has been unreachable for more than 1 minute."
+
+      # ── PostgreSQL Down ───────────────────────────────────────────────────
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL database is DOWN"
+          description: "The primary database has been unreachable for more than 1 minute."

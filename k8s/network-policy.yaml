@@ -1,0 +1,84 @@
+---
+# ─── Default deny all ingress/egress ─────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: amdox-erp
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# ─── Allow ingress to backend from nginx ingress controller ──────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-ingress
+  namespace: amdox-erp
+spec:
+  podSelector:
+    matchLabels:
+      app: amdox-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    - from:
+        - podSelector:
+            matchLabels:
+              app: amdox-frontend
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+    - to: []  # Allow external (database, AI service)
+      ports:
+        - port: 5432
+        - port: 8000
+        - port: 443
+        - port: 80
+---
+# ─── Allow frontend to receive ingress ───────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: amdox-erp
+spec:
+  podSelector:
+    matchLabels:
+      app: amdox-frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+---
+# ─── Allow Redis from backend only ───────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-from-backend
+  namespace: amdox-erp
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: amdox-backend
+      ports:
+        - port: 6379

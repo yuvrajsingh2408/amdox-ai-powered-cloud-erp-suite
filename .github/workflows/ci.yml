@@ -1,0 +1,151 @@
+name: CI — Lint, Type-Check & Tests
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend CI ─────────────────────────────────────────────────────────────
+  backend-ci:
+    name: Backend — TypeScript & Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: amdox_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://testuser:testpass@localhost:5432/amdox_test?schema=public
+      JWT_SECRET: ci-test-jwt-secret-minimum-64-characters-long-for-testing-only
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-minimum-64-characters-long-for-testing
+      NODE_ENV: test
+      PORT: 5000
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Push test database schema
+        run: npx prisma db push --skip-generate
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        run: npm test -- --testPathPattern="tests/unit" --coverage
+
+      - name: Run integration tests
+        run: npm test -- --testPathPattern="tests/integration"
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          directory: backend/coverage
+          flags: backend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── Backend Build ──────────────────────────────────────────────────────────
+  backend-build:
+    name: Backend — Production Build
+    runs-on: ubuntu-latest
+    needs: backend-ci
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: backend/dist
+          retention-days: 3
+
+  # ── Frontend CI ────────────────────────────────────────────────────────────
+  frontend-ci:
+    name: Frontend — TypeScript & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Production build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 3
+
+  # ── Security Audit ─────────────────────────────────────────────────────────
+  security-audit:
+    name: Security — Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Backend audit
+        working-directory: backend
+        run: npm audit --audit-level=high
+      - name: Frontend audit
+        working-directory: frontend
+        run: npm audit --audit-level=high

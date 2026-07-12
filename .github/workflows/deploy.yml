@@ -1,0 +1,94 @@
+name: Deploy — Kubernetes Rolling Update
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: production
+        type: choice
+        options: [production, staging]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pre-deployment-check:
+    name: Pre-deployment Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate k8s manifests
+        uses: azure/k8s-lint@v1
+        with:
+          manifests: |
+            k8s/namespace.yaml
+            k8s/configmap.yaml
+            k8s/backend-deployment.yaml
+            k8s/frontend-deployment.yaml
+            k8s/ingress.yaml
+
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: pre-deployment-check
+    environment: ${{ inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+
+      - name: Update image tags in manifests
+        run: |
+          TAG=${{ github.ref_name }}
+          sed -i "s|:latest|:${TAG}|g" k8s/backend-deployment.yaml
+          sed -i "s|:latest|:${TAG}|g" k8s/frontend-deployment.yaml
+
+      - name: Apply configmap
+        run: kubectl apply -f k8s/configmap.yaml -n amdox-erp
+
+      - name: Deploy backend (rolling update)
+        run: |
+          kubectl apply -f k8s/backend-deployment.yaml -n amdox-erp
+          kubectl rollout status deployment/amdox-backend -n amdox-erp --timeout=300s
+
+      - name: Deploy frontend (rolling update)
+        run: |
+          kubectl apply -f k8s/frontend-deployment.yaml -n amdox-erp
+          kubectl rollout status deployment/amdox-frontend -n amdox-erp --timeout=180s
+
+      - name: Apply HPA and network policies
+        run: |
+          kubectl apply -f k8s/hpa.yaml -n amdox-erp
+          kubectl apply -f k8s/network-policy.yaml -n amdox-erp
+
+      - name: Smoke test — health endpoint
+        run: |
+          sleep 30
+          curl -f https://api.amdox.io/health || exit 1
+          curl -f https://api.amdox.io/ready || exit 1
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Deployment ${{ github.ref_name }} to ${{ inputs.environment || 'production' }} succeeded"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed — rolling back..."
+          kubectl rollout undo deployment/amdox-backend -n amdox-erp
+          kubectl rollout undo deployment/amdox-frontend -n amdox-erp
+          echo "Rollback completed"

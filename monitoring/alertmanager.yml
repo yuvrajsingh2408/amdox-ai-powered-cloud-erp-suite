@@ -1,0 +1,51 @@
+global:
+  resolve_timeout: 5m
+  smtp_from: alerts@amdox.io
+  smtp_smarthost: ${SMTP_HOST:-smtp.mailgun.org}:587
+  smtp_auth_username: ${SMTP_USER}
+  smtp_auth_password: ${SMTP_PASSWORD}
+  smtp_require_tls: true
+
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: default-receiver
+  routes:
+    - match:
+        severity: critical
+      receiver: critical-alerts
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: default-receiver
+    email_configs:
+      - to: devops@amdox.io
+        subject: '[Amdox ERP] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+
+  - name: critical-alerts
+    email_configs:
+      - to: oncall@amdox.io
+        subject: '🚨 [CRITICAL] Amdox ERP — {{ .GroupLabels.alertname }}'
+        send_resolved: true
+    # slack_configs:
+    #   - api_url: ${SLACK_WEBHOOK_URL}
+    #     channel: '#alerts-critical'
+    #     title: '🚨 {{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+inhibit_rules:
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'job']
