@@ -24,8 +24,9 @@ services:
         value: "false"
 
   # 2. Frontend Static Site
-  - type: static
+  - type: web
     name: amdox-erp-frontend
+    runtime: static
     buildCommand: npm install && npm run build --workspace=frontend
     staticPublishPath: frontend/dist
     routes:
