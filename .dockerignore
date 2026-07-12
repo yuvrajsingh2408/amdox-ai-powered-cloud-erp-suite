@@ -1,0 +1,15 @@
+# Docker ignore rules for Amdox ERP Workspace
+node_modules
+dist
+build
+coverage
+.git
+.github
+*.log
+.env
+.env.*
+.DS_Store
+.vscode
+e2e
+playwright-report
+test-results
