@@ -25,6 +25,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    if (import.meta.env.VITE_API_URL) {
+      axios.defaults.baseURL = import.meta.env.VITE_API_URL;
+    }
+    
     // Enable automatic CSRF token handling in Axios
     axios.defaults.xsrfCookieName = 'csrf_token';
     axios.defaults.xsrfHeaderName = 'x-csrf-token';

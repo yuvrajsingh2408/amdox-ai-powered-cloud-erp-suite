@@ -30,8 +30,8 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction):
       const token = crypto.randomBytes(32).toString('hex');
       res.cookie(CSRF_COOKIE, token, {
         httpOnly: false,          // JS must be able to read it to send the header
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.VERCEL ? 'none' : 'strict',
+        secure: process.env.NODE_ENV === 'production' || !!process.env.VERCEL,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
     }
