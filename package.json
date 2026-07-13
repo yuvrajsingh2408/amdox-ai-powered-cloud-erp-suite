@@ -13,6 +13,10 @@
     "install:all": "npm install"
   },
   "devDependencies": {
-    "concurrently": "^10.0.3"
+    "concurrently": "^10.0.3",
+    "vercel": "^55.0.0"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
   }
 }
