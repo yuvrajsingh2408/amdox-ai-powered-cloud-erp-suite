@@ -8,9 +8,15 @@ export class DocumentService {
   private uploadsDir: string;
 
   constructor() {
-    this.uploadsDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(this.uploadsDir)) {
-      fs.mkdirSync(this.uploadsDir, { recursive: true });
+    this.uploadsDir = process.env.VERCEL
+      ? '/tmp/uploads'
+      : path.join(__dirname, '../../uploads');
+    try {
+      if (!fs.existsSync(this.uploadsDir)) {
+        fs.mkdirSync(this.uploadsDir, { recursive: true });
+      }
+    } catch (err) {
+      console.warn('Warning: Could not create uploads directory:', err);
     }
   }
 
