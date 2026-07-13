@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "npm run prisma:db:postgres && npx prisma generate --schema=prisma/schema.prisma && npx prisma migrate deploy --schema=prisma/schema.prisma && npx prisma db seed --schema=prisma/schema.prisma && npm run build",
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@5",
