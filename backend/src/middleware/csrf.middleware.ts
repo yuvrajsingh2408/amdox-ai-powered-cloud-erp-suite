@@ -38,8 +38,16 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction):
     return next();
   }
 
-  // Skip for webhook routes and API-key auth
-  if (req.path.startsWith('/api/webhooks') || req.headers['x-api-key']) {
+  // Skip for webhook routes, API-key auth, Bearer token auth, and public auth endpoints
+  const publicPaths = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh-token'];
+  const isPublicAuth = publicPaths.some(path => req.originalUrl.startsWith(path) || req.path.startsWith(path));
+
+  if (
+    req.path.startsWith('/api/webhooks') ||
+    req.headers['x-api-key'] ||
+    (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) ||
+    isPublicAuth
+  ) {
     return next();
   }
 
