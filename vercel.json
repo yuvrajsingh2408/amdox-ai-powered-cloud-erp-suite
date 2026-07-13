@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "buildCommand": "npm run prisma:db:postgres --workspace=backend && npx prisma generate --schema=backend/prisma/schema.prisma && npm run build --workspace=backend && npm run build --workspace=frontend",
+  "outputDirectory": "frontend/dist",
+  "framework": null,
+
+  "functions": {
+    "api/index.ts": {
+      "runtime": "@vercel/node@5",
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/health",   "destination": "/api/index.ts" },
+    { "source": "/ready",    "destination": "/api/index.ts" },
+    { "source": "/live",     "destination": "/api/index.ts" },
+    { "source": "/(.*)",     "destination": "/index.html" }
+  ],
+
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Origin",      "value": "*" },
+        { "key": "Access-Control-Allow-Methods",     "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
+        { "key": "Access-Control-Allow-Headers",     "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-tenant-id, x-tenant-subdomain, x-csrf-token" }
+      ]
+    }
+  ],
+
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
